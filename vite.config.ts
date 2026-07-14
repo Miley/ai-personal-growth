@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['app-icon.svg'],
       manifest: {
-        name: '另一个我',
-        short_name: '另一个我',
+        name: 'Another-Me',
+        short_name: 'Another-Me',
         description: '私密同伴、表达陪练与英语阅读。',
         theme_color: '#f5f1ea',
         background_color: '#f5f1ea',
