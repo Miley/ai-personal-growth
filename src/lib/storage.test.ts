@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { clearMemories, loadMemories, loadSettings, saveMemory, saveSettings } from './storage'
+import { clearMemories, createMemoryExport, loadMemories, loadSettings, saveMemory, saveSettings } from './storage'
 
 const memory = {
   scope: 'companion' as const,
@@ -32,5 +32,25 @@ describe('memory storage', () => {
     saveSettings({ apiBaseUrl: 'https://example.fcapp.run' })
 
     expect(loadSettings()).toEqual({ apiBaseUrl: 'https://example.fcapp.run' })
+  })
+
+  it('exports confirmed memories without gateway settings', () => {
+    saveMemory(memory)
+    saveMemory({ scope: 'english', text: 'take your time' })
+    saveSettings({ apiBaseUrl: 'https://example.fcapp.run' })
+
+    const exported = createMemoryExport('2026-07-14T08:00:00.000Z')
+
+    expect(exported).toMatchObject({
+      version: 1,
+      source: 'iphone-pwa',
+      exportedAt: '2026-07-14T08:00:00.000Z',
+    })
+    expect(exported.memories.map(({ scope, text }) => ({ scope, text }))).toEqual([
+      { scope: 'english', text: 'take your time' },
+      memory,
+    ])
+    expect(exported).not.toHaveProperty('apiBaseUrl')
+    expect(exported).not.toHaveProperty('settings')
   })
 })

@@ -7,6 +7,13 @@ export interface Memory {
   createdAt: string
 }
 
+export interface MemoryExport {
+  version: 1
+  exportedAt: string
+  source: 'iphone-pwa'
+  memories: Memory[]
+}
+
 export interface GatewaySettings {
   apiBaseUrl: string
 }

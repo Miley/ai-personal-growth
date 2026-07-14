@@ -1,4 +1,4 @@
-import type { GatewaySettings, Memory, MemoryScope } from '../types'
+import type { GatewaySettings, Memory, MemoryExport, MemoryScope } from '../types'
 
 const memoriesKey = 'another-me:memories'
 const settingsKey = 'another-me:gateway-settings'
@@ -42,6 +42,16 @@ export function clearMemories(scope: MemoryScope): Memory[] {
   const next = readJson<Memory[]>(memoriesKey, []).filter((memory) => memory.scope !== scope)
   localStorage.setItem(memoriesKey, JSON.stringify(next))
   return []
+}
+
+export function createMemoryExport(exportedAt = new Date().toISOString()): MemoryExport {
+  return {
+    version: 1,
+    exportedAt,
+    source: 'iphone-pwa',
+    memories: [...readJson<Memory[]>(memoriesKey, [])]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  }
 }
 
 export function loadSettings(): GatewaySettings {
