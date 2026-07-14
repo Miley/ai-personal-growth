@@ -1,0 +1,115 @@
+import type { ReadingUnit } from '../types'
+
+export const READING_UNITS: ReadingUnit[] = [
+  {
+    id: 'morning-routine',
+    level: 'starter',
+    category: 'parenting',
+    title: 'A Slow Morning',
+    minutes: 3,
+    paragraphs: [
+      'It is seven o’clock. My little boy is awake, but he is not ready to get out of bed. We sit together for one minute and look at the light on the wall.',
+      'Then I say, “Let’s open the curtain.” He pulls it with both hands. We laugh, put on his socks, and walk to the kitchen for breakfast.',
+    ],
+    notes: {
+      awake: '醒着的',
+      curtain: '窗帘',
+      'put on': '穿上',
+    },
+    question: 'What do they do before breakfast?',
+    answerHint: 'They open the curtain and get dressed.',
+  },
+  {
+    id: 'park-leaf',
+    level: 'starter',
+    category: 'parenting',
+    title: 'One Small Leaf',
+    minutes: 3,
+    paragraphs: [
+      'At the park, my child finds a small yellow leaf. He holds it up and says, “Look!” I do not know the name of the tree, but I can still be curious with him.',
+      'We put the leaf on a bench, look at its little lines, and say goodbye before we go home.',
+    ],
+    notes: {
+      leaf: '叶子',
+      curious: '好奇的',
+      bench: '长椅',
+    },
+    question: 'Where do they put the leaf?',
+    answerHint: 'On a bench.',
+  },
+  {
+    id: 'hotel-check-in',
+    level: 'bridge',
+    category: 'travel',
+    title: 'Checking In Calmly',
+    minutes: 5,
+    paragraphs: [
+      'After a long flight, Mia arrives at her hotel. The lobby is busy, and she worries that her reservation may be missing. Instead of speaking quickly, she takes out her passport and says, “Hi, I have a reservation under Mia Chen. Could you please check it for me?”',
+      'The receptionist finds her name. The room is not ready yet, but Mia can leave her luggage and get a cup of tea nearby. She learns that a clear question is often enough.',
+    ],
+    notes: {
+      lobby: '酒店大堂',
+      reservation: '预订',
+      luggage: '行李',
+      nearby: '在附近',
+    },
+    question: 'What does Mia do when the room is not ready?',
+    answerHint: 'She leaves her luggage and gets tea nearby.',
+  },
+  {
+    id: 'asking-directions',
+    level: 'bridge',
+    category: 'travel',
+    title: 'The Wrong Platform',
+    minutes: 5,
+    paragraphs: [
+      'Leo is standing in a train station with two platforms in front of him. His map says platform four, but the signs are confusing. He sees a station worker and says, “Excuse me, could you tell me which platform goes to the museum?”',
+      'The worker points across the hall and explains that Leo needs platform six, not four. Leo repeats the number to make sure: “Platform six, right?” This small check saves him an hour.',
+    ],
+    notes: {
+      platform: '站台',
+      confusing: '让人困惑的',
+      'make sure': '确认无误',
+    },
+    question: 'Why does Leo repeat the platform number?',
+    answerHint: 'He wants to make sure he understood correctly.',
+  },
+  {
+    id: 'tiny-museum',
+    level: 'steady',
+    category: 'world',
+    title: 'The Museum With One Object',
+    minutes: 8,
+    paragraphs: [
+      'In a small town by the sea, there is a museum with only one object: a wooden boat. It is not beautiful in the usual way. Its paint is faded, one side is cracked, and the room around it is almost empty. Yet visitors often stay longer than they planned.',
+      'The boat belonged to a local family who used it for thirty years. The museum does not claim that the boat changed history. Instead, it tells small stories: a child who learned to row there, a storm that kept the family on shore, and the last day the boat returned home. The object becomes interesting because people gave it meaning.',
+    ],
+    notes: {
+      faded: '褪色的',
+      cracked: '裂开的',
+      'on shore': '在岸上',
+      meaning: '意义',
+    },
+    question: 'Why do visitors stay with the boat?',
+    answerHint: 'The stories give an ordinary object meaning.',
+  },
+  {
+    id: 'reading-bravely',
+    level: 'steady',
+    category: 'world',
+    title: 'Reading Without Winning Every Word',
+    minutes: 8,
+    paragraphs: [
+      'Many adult learners stop reading English when they meet too many unfamiliar words. They treat every unknown word as a small failure. But reading is not a contest in which every word must be captured. It is closer to walking through a new neighborhood: you can still notice the street, the weather, and the direction even when you do not know every building.',
+      'A useful habit is to finish one paragraph before looking anything up. Then choose only the words that block the main idea or that you genuinely want to use later. This protects curiosity. Over time, the page feels less like a test and more like a place you can visit.',
+    ],
+    notes: {
+      unfamiliar: '不熟悉的',
+      captured: '掌握、弄懂',
+      curiosity: '好奇心',
+      'look up': '查阅',
+    },
+    question: 'Which words should a learner look up?',
+    answerHint: 'Words blocking the main idea or useful later.',
+  },
+]
