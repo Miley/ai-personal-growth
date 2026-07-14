@@ -39,6 +39,14 @@ describe('Function Compute AI proxy', () => {
     expect(JSON.parse(result.body)).toEqual({ error: '来源未获授权。' })
   })
 
+  it('leaves CORS response headers to the Function Compute gateway', async () => {
+    const result = await handler(event({ action: 'unknown' }))
+
+    expect(result.headers).not.toHaveProperty('Access-Control-Allow-Origin')
+    expect(result.headers).not.toHaveProperty('Access-Control-Allow-Methods')
+    expect(result.headers).not.toHaveProperty('Access-Control-Allow-Headers')
+  })
+
   it('uses the server key to proxy a chat request and returns only text', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { content: '我听见你了。' } }],

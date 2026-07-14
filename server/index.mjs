@@ -9,14 +9,8 @@ function allowedOrigins() {
     .filter(Boolean)
 }
 
-function response(statusCode, body, origin) {
-  const headers = { 'Content-Type': 'application/json; charset=utf-8', Vary: 'Origin' }
-  if (origin) {
-    headers['Access-Control-Allow-Origin'] = origin
-    headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-    headers['Access-Control-Allow-Headers'] = 'Content-Type'
-  }
-  return { statusCode, headers, body: JSON.stringify(body) }
+function response(statusCode, body) {
+  return { statusCode, headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(body) }
 }
 
 function parseEvent(event) {
