@@ -1,0 +1,23 @@
+name: Diagnose function endpoint
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe preflight
+        run: |
+          endpoint='https://another-me-ai-xldfmbbsec.cn-beijing.fcapp.run'
+          curl --fail-with-body --max-time 30 -sS -i -X OPTIONS "$endpoint" \
+            -H 'Origin: https://miley.github.io' \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type'
+      - name: Probe model request
+        run: |
+          endpoint='https://another-me-ai-xldfmbbsec.cn-beijing.fcapp.run'
+          curl --fail-with-body --max-time 60 -sS -i -X POST "$endpoint" \
+            -H 'Origin: https://miley.github.io' \
+            -H 'Content-Type: application/json' \
+            --data '{"action":"chat","text":"请只回复：连接正常"}'
