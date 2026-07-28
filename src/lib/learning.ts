@@ -4,6 +4,19 @@ export function filterReadingUnits(units: ReadingUnit[], level: ReadingLevel): R
   return units.filter((unit) => unit.level === level)
 }
 
+export function rotateDailyReadingUnits(
+  units: ReadingUnit[],
+  level: ReadingLevel,
+  date = new Date(),
+): ReadingUnit[] {
+  const matches = filterReadingUnits(units, level)
+  if (matches.length < 2) return matches
+
+  const dayNumber = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000)
+  const start = dayNumber % matches.length
+  return [...matches.slice(start), ...matches.slice(0, start)]
+}
+
 interface PracticeFeedbackInput {
   goal: string
   userText: string

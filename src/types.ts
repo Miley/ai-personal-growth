@@ -42,7 +42,7 @@ export type ReadingLevel = 'starter' | 'bridge' | 'steady'
 export interface ReadingUnit {
   id: string
   level: ReadingLevel
-  category: 'parenting' | 'travel' | 'world'
+  category: 'everyday' | 'parenting' | 'travel' | 'world'
   title: string
   minutes: number
   paragraphs: string[]

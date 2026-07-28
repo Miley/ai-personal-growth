@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createPracticeFeedback, filterReadingUnits } from './learning'
+import { createPracticeFeedback, filterReadingUnits, rotateDailyReadingUnits } from './learning'
 import type { ReadingUnit } from '../types'
 
 const units: ReadingUnit[] = [
@@ -30,6 +30,22 @@ const units: ReadingUnit[] = [
 describe('learning helpers', () => {
   it('filters reading material by level without hiding other categories', () => {
     expect(filterReadingUnits(units, 'starter').map((unit) => unit.id)).toEqual(['starter-parenting'])
+  })
+
+  it('puts a different reading first on the next day', () => {
+    const starterUnits: ReadingUnit[] = [
+      units[0],
+      { ...units[0], id: 'starter-everyday', category: 'everyday', title: 'At the coffee shop' },
+      { ...units[0], id: 'starter-travel', category: 'travel', title: 'At the station' },
+    ]
+
+    const firstDay = rotateDailyReadingUnits(starterUnits, 'starter', new Date('2026-07-28T08:00:00+08:00'))
+    const sameDay = rotateDailyReadingUnits(starterUnits, 'starter', new Date('2026-07-28T20:00:00+08:00'))
+    const nextDay = rotateDailyReadingUnits(starterUnits, 'starter', new Date('2026-07-29T08:00:00+08:00'))
+
+    expect(firstDay[0].id).toBe(sameDay[0].id)
+    expect(nextDay[0].id).not.toBe(firstDay[0].id)
+    expect(firstDay).toHaveLength(3)
   })
 
   it('creates one quote-based rehearsal point for a practice turn', () => {
