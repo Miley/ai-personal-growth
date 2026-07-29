@@ -26,15 +26,39 @@ export interface ChatMessage {
   imageDataUrl?: string
 }
 
-export type PracticeLevel = 'quick' | 'standard' | 'deep'
-
-export interface PracticeScenario {
+export interface SpeechTemplate {
   id: string
-  category: 'social' | 'upward' | 'meeting'
+  category: 'briefing' | 'persuasion' | 'story' | 'reflection'
   title: string
-  setup: string
-  goal: string
-  partnerOpening: string
+  audience: string
+  minutes: number
+  objective: string
+  paragraphs: string[]
+  studyPoints: string[]
+  imitationFocus: string
+}
+
+export interface SpeechFeedback {
+  source: 'ai' | 'local'
+  overall: string
+  strengths: string[]
+  priority: {
+    title: string
+    evidence: string
+    action: string
+  }
+  modelOpening: string
+  nextPractice: string
+}
+
+export interface SpeechPracticeRecord {
+  id: string
+  date: string
+  templateId: string
+  templateTitle: string
+  transcript: string
+  feedback: SpeechFeedback
+  createdAt: string
 }
 
 export type ReadingLevel = 'starter' | 'bridge' | 'steady'

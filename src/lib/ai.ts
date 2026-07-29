@@ -1,6 +1,8 @@
 import type { GatewaySettings } from '../types'
 import type { ReadingLevel } from '../types'
+import type { SpeechFeedback, SpeechTemplate } from '../types'
 import { isAiGatewayConfigured, requestAi } from './apiGateway'
+import { createLocalSpeechFeedback } from './learning'
 
 const companionSystemPrompt = `你是一个温和、清醒、私密的 AI 同伴。先复述和澄清用户的经历，再给一个可选视角。不要诊断心理问题，不要假装真人，不要替用户做决定。回复使用简洁中文。`
 
@@ -38,4 +40,45 @@ export async function createReadingFromImage(
   const data = await requestAi<GeneratedReading>('reading', { imageDataUrl, level }, settings)
   if (!data.title?.trim() || !data.body?.trim()) throw new Error('图片阅读没有返回可用内容。')
   return { title: data.title.trim(), body: data.body.trim() }
+}
+
+function isSpeechFeedback(value: unknown): value is Omit<SpeechFeedback, 'source'> {
+  if (!value || typeof value !== 'object') return false
+  const feedback = value as Partial<SpeechFeedback>
+  return Boolean(
+    typeof feedback.overall === 'string'
+    && Array.isArray(feedback.strengths)
+    && feedback.strengths.length >= 2
+    && feedback.strengths.every((item) => typeof item === 'string')
+    && feedback.priority
+    && typeof feedback.priority.title === 'string'
+    && typeof feedback.priority.evidence === 'string'
+    && typeof feedback.priority.action === 'string'
+    && typeof feedback.modelOpening === 'string'
+    && typeof feedback.nextPractice === 'string',
+  )
+}
+
+export async function getSpeechFeedback(
+  template: SpeechTemplate,
+  transcript: string,
+  settings?: GatewaySettings,
+): Promise<SpeechFeedback> {
+  if (!isAiGatewayConfigured(settings)) return createLocalSpeechFeedback(transcript)
+
+  try {
+    const data = await requestAi<Omit<SpeechFeedback, 'source'>>('speech-feedback', {
+      template: {
+        title: template.title,
+        objective: template.objective,
+        imitationFocus: template.imitationFocus,
+        sample: template.paragraphs.join('\n'),
+      },
+      transcript,
+    }, settings)
+    if (!isSpeechFeedback(data)) throw new Error('演讲反馈格式无效。')
+    return { ...data, source: 'ai' }
+  } catch {
+    return createLocalSpeechFeedback(transcript)
+  }
 }

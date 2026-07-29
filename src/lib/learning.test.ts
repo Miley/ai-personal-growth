@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createPracticeFeedback, filterReadingUnits, rotateDailyReadingUnits } from './learning'
-import type { ReadingUnit } from '../types'
+import {
+  createLocalSpeechFeedback,
+  filterReadingUnits,
+  rotateDailyReadingUnits,
+  rotateDailySpeechTemplates,
+} from './learning'
+import type { ReadingUnit, SpeechTemplate } from '../types'
 
 const units: ReadingUnit[] = [
   {
@@ -48,15 +53,33 @@ describe('learning helpers', () => {
     expect(firstDay).toHaveLength(3)
   })
 
-  it('creates one quote-based rehearsal point for a practice turn', () => {
-    const feedback = createPracticeFeedback({
-      goal: '接住对方刚说的细节，再追问一个具体点。',
-      userText: '我也觉得周末过得很快。',
-      partnerText: '我周末带孩子去看了一个小展，排队排得有点累。',
-    })
+  it('keeps the same speech template for a local day and rotates on the next day', () => {
+    const templates: SpeechTemplate[] = ['判断', '故事', '说服'].map((title, index) => ({
+      id: `speech-${index}`,
+      category: 'briefing',
+      title,
+      audience: '同事',
+      minutes: 2,
+      objective: '说清一个观点',
+      paragraphs: [`${title}正文`],
+      studyPoints: ['先给结论'],
+      imitationFocus: '结论先行',
+    }))
 
-    expect(feedback.effectiveQuote).toBe('我也觉得周末过得很快。')
-    expect(feedback.rehearsal).toMatch(/排队/)
-    expect(feedback.rehearsal).toMatch(/一个问题/)
+    const morning = rotateDailySpeechTemplates(templates, new Date('2026-07-29T08:00:00+08:00'))
+    const evening = rotateDailySpeechTemplates(templates, new Date('2026-07-29T20:00:00+08:00'))
+    const nextDay = rotateDailySpeechTemplates(templates, new Date('2026-07-30T08:00:00+08:00'))
+
+    expect(morning[0].id).toBe(evening[0].id)
+    expect(nextDay[0].id).not.toBe(morning[0].id)
+  })
+
+  it('creates a focused local fallback when the AI gateway is unavailable', () => {
+    const feedback = createLocalSpeechFeedback('我建议先做小范围验证。原因有两点。第一，风险可控。第二，可以更快拿到反馈。')
+
+    expect(feedback.source).toBe('local')
+    expect(feedback.strengths).toHaveLength(2)
+    expect(feedback.priority.action).toBeTruthy()
+    expect(feedback.nextPractice).toMatch(/再说一次/)
   })
 })

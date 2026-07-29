@@ -61,4 +61,37 @@ describe('Function Compute AI proxy', () => {
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer sk-server-only' }) }),
     )
   })
+
+  it('returns structured coaching for a speech retelling', async () => {
+    const modelFeedback = {
+      overall: '观点清楚，结构已经成形。',
+      strengths: ['开头给出了判断', '理由之间有层次'],
+      priority: {
+        title: '让结尾更明确',
+        evidence: '结尾没有给出下一步。',
+        action: '补一句希望听众采取的行动。',
+      },
+      modelOpening: '我的建议是先做一周的小范围验证。',
+      nextPractice: '只重练开头和结尾。',
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify(modelFeedback) } }],
+    })))
+
+    const result = await handler(event({
+      action: 'speech-feedback',
+      template: {
+        title: '先把判断说清楚',
+        objective: '提出一个可执行建议',
+        imitationFocus: '结论先行',
+      },
+      transcript: '我建议先做小范围验证，因为风险可控。',
+    }))
+
+    expect(result.statusCode).toBe(200)
+    expect(JSON.parse(result.body)).toEqual(modelFeedback)
+    const payload = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    expect(payload.messages[1].content).toContain('我建议先做小范围验证')
+    expect(payload.messages[0].content).toContain('只指出一个最优先改进点')
+  })
 })

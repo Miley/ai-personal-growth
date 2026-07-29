@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { clearMemories, createMemoryExport, loadMemories, loadSettings, saveMemory, saveSettings } from './storage'
+import {
+  clearAllLocalData,
+  clearMemories,
+  createMemoryExport,
+  loadMemories,
+  loadSettings,
+  loadSpeechPracticeRecords,
+  saveMemory,
+  saveSettings,
+  saveSpeechPracticeRecord,
+} from './storage'
 
 const memory = {
   scope: 'companion' as const,
@@ -52,5 +62,48 @@ describe('memory storage', () => {
     ])
     expect(exported).not.toHaveProperty('apiBaseUrl')
     expect(exported).not.toHaveProperty('settings')
+  })
+
+  it('keeps only the latest speech practice for each day', () => {
+    const base = {
+      date: '2026-07-29',
+      templateId: 'speech-1',
+      templateTitle: '先把判断说清楚',
+      feedback: {
+        source: 'local' as const,
+        overall: '结构已经成形。',
+        strengths: ['有明确观点', '有具体依据'],
+        priority: { title: '压缩开头', evidence: '开头铺垫较长', action: '第一句直接说结论。' },
+        modelOpening: '我的建议是先做小范围验证。',
+        nextPractice: '把开头再说一次。',
+      },
+    }
+
+    saveSpeechPracticeRecord({ ...base, transcript: '第一次复述。' }, '2026-07-29T08:00:00.000Z')
+    saveSpeechPracticeRecord({ ...base, transcript: '第二次复述。' }, '2026-07-29T09:00:00.000Z')
+
+    expect(loadSpeechPracticeRecords()).toHaveLength(1)
+    expect(loadSpeechPracticeRecords()[0].transcript).toBe('第二次复述。')
+  })
+
+  it('clears speech practice records with the rest of the local data', () => {
+    saveSpeechPracticeRecord({
+      date: '2026-07-29',
+      templateId: 'speech-1',
+      templateTitle: '先把判断说清楚',
+      transcript: '今天的复述。',
+      feedback: {
+        source: 'local',
+        overall: '完成。',
+        strengths: ['有开头', '有结尾'],
+        priority: { title: '补依据', evidence: '依据偏少', action: '补一个事实。' },
+        modelOpening: '我的判断是……',
+        nextPractice: '再说一次。',
+      },
+    })
+
+    clearAllLocalData()
+
+    expect(loadSpeechPracticeRecords()).toEqual([])
   })
 })

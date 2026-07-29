@@ -1,7 +1,14 @@
-import type { GatewaySettings, Memory, MemoryExport, MemoryScope } from '../types'
+import type {
+  GatewaySettings,
+  Memory,
+  MemoryExport,
+  MemoryScope,
+  SpeechPracticeRecord,
+} from '../types'
 
 const memoriesKey = 'another-me:memories'
 const settingsKey = 'another-me:gateway-settings'
+const speechPracticeKey = 'another-me:speech-practice'
 
 function readJson<T>(key: string, fallback: T): T {
   const raw = localStorage.getItem(key)
@@ -64,7 +71,28 @@ export function saveSettings(settings: GatewaySettings): void {
   localStorage.setItem(settingsKey, JSON.stringify(settings))
 }
 
+export function loadSpeechPracticeRecords(): SpeechPracticeRecord[] {
+  return readJson<SpeechPracticeRecord[]>(speechPracticeKey, [])
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export function saveSpeechPracticeRecord(
+  input: Omit<SpeechPracticeRecord, 'id' | 'createdAt'>,
+  createdAt = new Date().toISOString(),
+): SpeechPracticeRecord[] {
+  const records = loadSpeechPracticeRecords().filter((record) => record.date !== input.date)
+  const record: SpeechPracticeRecord = {
+    ...input,
+    id: `speech-practice-${crypto.randomUUID()}`,
+    createdAt,
+  }
+  const next = [record, ...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  localStorage.setItem(speechPracticeKey, JSON.stringify(next))
+  return next
+}
+
 export function clearAllLocalData(): void {
   localStorage.removeItem(memoriesKey)
   localStorage.removeItem(settingsKey)
+  localStorage.removeItem(speechPracticeKey)
 }

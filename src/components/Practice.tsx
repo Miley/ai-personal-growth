@@ -1,20 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { SCENARIOS } from '../data/scenarios'
-import { createPracticeFeedback } from '../lib/learning'
+import { SPEECH_TEMPLATES } from '../data/speeches'
+import { getSpeechFeedback } from '../lib/ai'
+import { rotateDailySpeechTemplates } from '../lib/learning'
 import { transcribeAudio } from '../lib/modelStudio'
-import type { GatewaySettings, PracticeLevel, PracticeScenario } from '../types'
+import { loadSpeechPracticeRecords, saveSpeechPracticeRecord } from '../lib/storage'
+import type { GatewaySettings, SpeechFeedback, SpeechPracticeRecord } from '../types'
 
-const roundsByLevel: Record<PracticeLevel, number> = { quick: 1, standard: 5, deep: 8 }
-const labels: Record<PracticeLevel, string> = { quick: '3 分钟', standard: '8 分钟', deep: '15 分钟' }
+type PracticePhase = 'study' | 'practice' | 'feedback'
 
-function partnerReply(scenario: PracticeScenario, round: number): string {
-  const replies = [
-    '嗯，是的。你平时遇到这种情况会怎么做？',
-    '这倒是我没想到的。你说的那个细节让我有点好奇。',
-    '听起来你有自己的判断。能再说具体一点吗？',
-  ]
-  return `${replies[(round - 1) % replies.length]}（${scenario.title} · 第 ${round + 1} 回合）`
-}
+const categoryLabels = {
+  briefing: '工作汇报',
+  persuasion: '观点说服',
+  story: '复盘叙事',
+  reflection: '主题演讲',
+} as const
 
 function readAsDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -25,21 +24,26 @@ function readAsDataUrl(file: Blob): Promise<string> {
   })
 }
 
+function localDateKey(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function Practice({ settings }: { settings: GatewaySettings }) {
-  const [scenarioId, setScenarioId] = useState(SCENARIOS[0].id)
-  const [level, setLevel] = useState<PracticeLevel>('standard')
-  const [round, setRound] = useState(0)
-  const [partnerText, setPartnerText] = useState('')
+  const template = useMemo(() => rotateDailySpeechTemplates(SPEECH_TEMPLATES)[0], [])
+  const [phase, setPhase] = useState<PracticePhase>('study')
   const [draft, setDraft] = useState('')
-  const [lastUserText, setLastUserText] = useState('')
+  const [feedback, setFeedback] = useState<SpeechFeedback | null>(null)
+  const [records, setRecords] = useState<SpeechPracticeRecord[]>(loadSpeechPracticeRecords)
+  const [showReference, setShowReference] = useState(false)
   const [recording, setRecording] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [recordingNotice, setRecordingNotice] = useState('')
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const scenario = useMemo(() => SCENARIOS.find((item) => item.id === scenarioId)!, [scenarioId])
-  const totalRounds = roundsByLevel[level]
-  const feedback = lastUserText ? createPracticeFeedback({ goal: scenario.goal, userText: lastUserText, partnerText }) : null
 
   useEffect(() => () => {
     const recorder = recorderRef.current
@@ -50,19 +54,33 @@ export function Practice({ settings }: { settings: GatewaySettings }) {
     streamRef.current?.getTracks().forEach((track) => track.stop())
   }, [])
 
-  const start = () => {
-    setRound(1)
-    setPartnerText(scenario.partnerOpening)
+  const beginPractice = () => {
+    setPhase('practice')
     setDraft('')
-    setLastUserText('')
+    setFeedback(null)
+    setShowReference(false)
     setRecordingNotice('')
   }
 
-  const send = () => {
-    if (!draft.trim() || recording || transcribing) return
-    setLastUserText(draft.trim())
-    setDraft('')
+  const submit = async () => {
+    const transcript = draft.trim()
+    if (!transcript || recording || transcribing || feedbackLoading) return
+
+    setFeedbackLoading(true)
+    setRecordingNotice('正在分析这次复述…')
+    const nextFeedback = await getSpeechFeedback(template, transcript, settings)
+    const nextRecords = saveSpeechPracticeRecord({
+      date: localDateKey(),
+      templateId: template.id,
+      templateTitle: template.title,
+      transcript,
+      feedback: nextFeedback,
+    })
+    setFeedback(nextFeedback)
+    setRecords(nextRecords)
+    setPhase('feedback')
     setRecordingNotice('')
+    setFeedbackLoading(false)
   }
 
   const toggleRecording = async () => {
@@ -103,75 +121,129 @@ export function Practice({ settings }: { settings: GatewaySettings }) {
     }
   }
 
-  const next = () => {
-    const nextRound = round + 1
-    if (nextRound > totalRounds) return
-    setRound(nextRound)
-    setPartnerText(partnerReply(scenario, round))
-    setLastUserText('')
-    setRecordingNotice('')
-  }
-
-  if (!round) {
+  if (phase === 'study') {
     return (
       <section className="mode-page">
         <header className="mode-header">
-          <span className="eyebrow">表达陪练</span>
-          <h1>先让对话自然发生</h1>
-          <p>不是录一段独白。每轮只练一个动作。</p>
+          <span className="eyebrow">今日演讲范本</span>
+          <h1>{template.title}</h1>
+          <p>先理解它为什么有效，再用自己的语言复述。不需要逐字背诵。</p>
         </header>
-        <label className="field-label">今天的场景
-          <select value={scenarioId} onChange={(event) => setScenarioId(event.target.value)}>
-            {SCENARIOS.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-          </select>
-        </label>
-        <div className="scenario-card">
-          <span>{scenario.category === 'social' ? '即兴聊天' : scenario.category === 'upward' ? '向上沟通' : '会议表达'}</span>
-          <h2>{scenario.title}</h2>
-          <p>{scenario.setup}</p>
-          <strong>本轮目标：{scenario.goal}</strong>
+
+        <div className="speech-meta">
+          <span>{categoryLabels[template.category]}</span>
+          <span>{template.minutes} 分钟</span>
+          <span>听众：{template.audience}</span>
         </div>
-        <div className="level-choice">
-          {(Object.keys(labels) as PracticeLevel[]).map((item) => (
-            <button key={item} className={level === item ? 'selected' : ''} onClick={() => setLevel(item)}>
-              {labels[item]}<small>{roundsByLevel[item]} 回合</small>
-            </button>
-          ))}
+
+        <article className="speech-card">
+          {template.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+        </article>
+
+        <section className="study-guide">
+          <span className="eyebrow">学习时只抓三件事</span>
+          <ol>
+            {template.studyPoints.map((point) => <li key={point}>{point}</li>)}
+          </ol>
+          <p><strong>今天重点模仿：</strong>{template.imitationFocus}</p>
+        </section>
+
+        <button className="primary large" onClick={beginPractice}>开始复述</button>
+
+        {records.length > 0 && (
+          <section className="practice-history">
+            <span className="eyebrow">最近训练</span>
+            {records.slice(0, 3).map((record) => (
+              <article key={record.id}>
+                <div><strong>{record.templateTitle}</strong><small>{record.date}</small></div>
+                <p>上次重点：{record.feedback.priority.title}</p>
+              </article>
+            ))}
+          </section>
+        )}
+      </section>
+    )
+  }
+
+  if (phase === 'feedback' && feedback) {
+    return (
+      <section className="mode-page">
+        <header className="mode-header">
+          <span className="eyebrow">本次反馈</span>
+          <h1>今天只改一个点</h1>
+          <p>{feedback.overall}</p>
+        </header>
+
+        {feedback.source === 'local' && <p className="feedback-source">云端暂时不可用，本次使用本地基础反馈；训练记录仍已保存在本机。</p>}
+
+        <section className="feedback-section">
+          <h2>已经做好的</h2>
+          <ul>{feedback.strengths.map((item) => <li key={item}>{item}</li>)}</ul>
+        </section>
+
+        <section className="feedback-priority">
+          <span className="eyebrow">最优先改进</span>
+          <h2>{feedback.priority.title}</h2>
+          <p>{feedback.priority.evidence}</p>
+          <strong>{feedback.priority.action}</strong>
+        </section>
+
+        <section className="feedback-section">
+          <h2>示范开头</h2>
+          <blockquote>{feedback.modelOpening}</blockquote>
+        </section>
+
+        <section className="next-practice">
+          <span className="eyebrow">下一次只练这个</span>
+          <p>{feedback.nextPractice}</p>
+        </section>
+
+        <div className="feedback-actions">
+          <button className="primary" onClick={beginPractice}>再练一次</button>
+          <button onClick={() => setPhase('study')}>返回范本</button>
         </div>
-        <button className="primary large" onClick={start}>开始这一轮</button>
       </section>
     )
   }
 
   return (
     <section className="mode-page">
-      <div className="practice-progress">
-        <span>{scenario.title}</span><strong>第 {round} / {totalRounds} 回合</strong>
-      </div>
-      <p className="goal">本轮目标：{scenario.goal}</p>
-      <article className="partner-line"><span>练习对象</span><p>{partnerText}</p></article>
-      {!feedback ? (
-        <div className="practice-input">
-          <label htmlFor="practice-draft">建议说 20–40 秒；录音会先转成文字，确认后再提交。</label>
-          <textarea id="practice-draft" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="点击“开始录音”，或直接输入你会怎么回应。" rows={4} />
-          <div className="practice-actions">
-            <button type="button" className={recording ? 'recording' : 'voice'} onClick={toggleRecording} disabled={transcribing}>
-              {transcribing ? '正在转写…' : recording ? '结束录音' : '开始录音'}
-            </button>
-            <button type="button" className="primary" onClick={send} disabled={!draft.trim() || recording || transcribing}>提交本回合</button>
-          </div>
-          {recordingNotice && <p className="practice-notice" aria-live="polite">{recordingNotice}</p>}
-        </div>
-      ) : (
-        <div className="feedback-card">
-          <span className="eyebrow">只练一个点</span>
-          <p>{feedback.goalStatus}</p>
-          <p><strong>你的有效一句：</strong>“{feedback.effectiveQuote}”</p>
-          <p>{feedback.missedDetail}</p>
-          <div className="rehearsal">{feedback.rehearsal}</div>
-          {round < totalRounds ? <button className="primary" onClick={next}>进入下一回合</button> : <button className="primary" onClick={() => setRound(0)}>完成练习</button>}
-        </div>
+      <header className="mode-header">
+        <span className="eyebrow">复述练习</span>
+        <h1>不用背，讲出你的版本</h1>
+        <p>建议说 90–180 秒。保留范本的结构，也可以换成你熟悉的工作情境。</p>
+      </header>
+
+      <div className="practice-focus"><strong>今天重点：</strong>{template.imitationFocus}</div>
+
+      <button className="reference-toggle" onClick={() => setShowReference((current) => !current)}>
+        {showReference ? '收起范本' : '需要时查看范本'}
+      </button>
+      {showReference && (
+        <article className="speech-card compact">
+          {template.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+        </article>
       )}
+
+      <div className="practice-input">
+        <label htmlFor="practice-draft">录音会先转成文字，你确认后才会提交分析。</label>
+        <textarea
+          id="practice-draft"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="点击“开始录音”，或直接输入你的复述。"
+          rows={7}
+        />
+        <div className="practice-actions">
+          <button type="button" className={recording ? 'recording' : 'voice'} onClick={toggleRecording} disabled={transcribing || feedbackLoading}>
+            {transcribing ? '正在转写…' : recording ? '结束录音' : '开始录音'}
+          </button>
+          <button type="button" className="primary" onClick={submit} disabled={!draft.trim() || recording || transcribing || feedbackLoading}>
+            {feedbackLoading ? '分析中…' : '提交复述'}
+          </button>
+        </div>
+        {recordingNotice && <p className="practice-notice" aria-live="polite">{recordingNotice}</p>}
+      </div>
     </section>
   )
 }

@@ -50,6 +50,36 @@ function resultText(data) {
   return text.trim()
 }
 
+function parseJsonResult(data) {
+  const text = resultText(data).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  const parsed = JSON.parse(text)
+  if (
+    !parsed
+    || typeof parsed.overall !== 'string'
+    || !Array.isArray(parsed.strengths)
+    || parsed.strengths.length < 2
+    || !parsed.strengths.every((item) => typeof item === 'string')
+    || typeof parsed.priority?.title !== 'string'
+    || typeof parsed.priority?.evidence !== 'string'
+    || typeof parsed.priority?.action !== 'string'
+    || typeof parsed.modelOpening !== 'string'
+    || typeof parsed.nextPractice !== 'string'
+  ) {
+    throw new Error('invalid-speech-feedback')
+  }
+  return {
+    overall: parsed.overall,
+    strengths: parsed.strengths.slice(0, 2),
+    priority: {
+      title: parsed.priority.title,
+      evidence: parsed.priority.evidence,
+      action: parsed.priority.action,
+    },
+    modelOpening: parsed.modelOpening,
+    nextPractice: parsed.nextPractice,
+  }
+}
+
 async function handleAction(body) {
   if (body.action === 'chat') {
     const content = [{ type: 'text', text: String(body.text || '') }]
@@ -88,6 +118,41 @@ async function handleAction(body) {
       asr_options: { enable_itn: true },
     })
     return { text: resultText(data) }
+  }
+
+  if (body.action === 'speech-feedback') {
+    const transcript = String(body.transcript || '').trim()
+    if (!transcript) throw new Error('invalid-speech-feedback-request')
+    const template = body.template && typeof body.template === 'object' ? body.template : {}
+    const coachingPrompt = `你是一位克制、具体的中文演讲教练。学员先学习一篇范本，再用自己的语言复述。你的目标是帮助学员逐步提高，不追求逐字复刻，也不评价人格。
+
+反馈规则：
+1. 先给一个简短总体判断。
+2. 指出两个已经做好的地方，必须基于本次复述的具体表达。
+3. 只指出一个最优先改进点，引用或描述可核对的证据，并给一个能立即执行的动作。
+4. 给一个更有力的示范开头，但保留学员原意。
+5. 给下一次只需练习一个动作的任务。
+6. 不打分，不使用空泛鼓励，不一次列出多个缺点。
+
+只返回合法 JSON，不要 Markdown：
+{"overall":"...","strengths":["...","..."],"priority":{"title":"...","evidence":"...","action":"..."},"modelOpening":"...","nextPractice":"..."}`
+    const userPrompt = `范本标题：${String(template.title || '')}
+训练目标：${String(template.objective || '')}
+模仿重点：${String(template.imitationFocus || '')}
+范本正文：
+${String(template.sample || '')}
+
+学员复述：
+${transcript}`
+    const data = await callModel({
+      model: process.env.BAILIAN_CHAT_MODEL || 'qwen3-vl-flash',
+      messages: [
+        { role: 'system', content: coachingPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 700,
+    })
+    return parseJsonResult(data)
   }
 
   throw new Error('unsupported-action')

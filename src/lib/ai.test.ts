@@ -1,5 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createReadingFromImage, getCompanionReply } from './ai'
+import { createReadingFromImage, getCompanionReply, getSpeechFeedback } from './ai'
+import type { SpeechTemplate } from '../types'
+
+const speechTemplate: SpeechTemplate = {
+  id: 'small-test',
+  category: 'persuasion',
+  title: '先做小范围验证',
+  audience: '管理者',
+  minutes: 2,
+  objective: '提出一个可执行建议',
+  paragraphs: ['我的建议是先做一次小范围验证。'],
+  studyPoints: ['结论先行'],
+  imitationFocus: '结论先行，再用行动收束',
+}
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -28,5 +41,42 @@ describe('companion replies', () => {
         body: JSON.stringify({ action: 'chat', text: '今天开会时我一直没说话。' }),
       }),
     )
+  })
+
+  it('requests structured speech coaching from the configured gateway', async () => {
+    const cloudFeedback = {
+      overall: '结构清楚。',
+      strengths: ['观点出现得早', '理由具体'],
+      priority: { title: '补行动', evidence: '结尾停在理由', action: '最后提出一个下一步。' },
+      modelOpening: '我的建议是先做一周验证。',
+      nextPractice: '只重练结尾。',
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(cloudFeedback)))
+
+    await expect(getSpeechFeedback(
+      speechTemplate,
+      '我的建议是先做小范围验证，因为风险可控。',
+      { apiBaseUrl: 'https://example.fcapp.run' },
+    )).resolves.toEqual({ ...cloudFeedback, source: 'ai' })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.fcapp.run',
+      expect.objectContaining({
+        body: expect.stringContaining('"action":"speech-feedback"'),
+      }),
+    )
+  })
+
+  it('falls back to focused local feedback when cloud coaching fails', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('unavailable', { status: 502 }))
+
+    const feedback = await getSpeechFeedback(
+      speechTemplate,
+      '我建议先做小范围验证。第一，风险可控。第二，可以更快获得反馈。',
+      { apiBaseUrl: 'https://example.fcapp.run' },
+    )
+
+    expect(feedback.source).toBe('local')
+    expect(feedback.priority.title).toBeTruthy()
   })
 })
