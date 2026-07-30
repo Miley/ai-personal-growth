@@ -3,12 +3,15 @@ import type {
   Memory,
   MemoryExport,
   MemoryScope,
+  ReadingLevel,
+  ReadingUnit,
   SpeechPracticeRecord,
 } from '../types'
 
 const memoriesKey = 'another-me:memories'
 const settingsKey = 'another-me:gateway-settings'
 const speechPracticeKey = 'another-me:speech-practice'
+const dailyReadingsKey = 'another-me:daily-readings'
 
 function readJson<T>(key: string, fallback: T): T {
   const raw = localStorage.getItem(key)
@@ -91,8 +94,23 @@ export function saveSpeechPracticeRecord(
   return next
 }
 
+export function loadDailyReading(date: string, level: ReadingLevel): ReadingUnit | undefined {
+  return readJson<Record<string, ReadingUnit>>(dailyReadingsKey, {})[`${date}:${level}`]
+}
+
+export function saveDailyReading(date: string, level: ReadingLevel, reading: ReadingUnit): void {
+  const cache = readJson<Record<string, ReadingUnit>>(dailyReadingsKey, {})
+  const next = Object.fromEntries(
+    Object.entries({ ...cache, [`${date}:${level}`]: reading })
+      .sort(([first], [second]) => second.localeCompare(first))
+      .slice(0, 30),
+  )
+  localStorage.setItem(dailyReadingsKey, JSON.stringify(next))
+}
+
 export function clearAllLocalData(): void {
   localStorage.removeItem(memoriesKey)
   localStorage.removeItem(settingsKey)
   localStorage.removeItem(speechPracticeKey)
+  localStorage.removeItem(dailyReadingsKey)
 }

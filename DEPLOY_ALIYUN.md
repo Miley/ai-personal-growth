@@ -24,7 +24,7 @@ ALLOWED_ORIGINS=https://你的GitHub用户名.github.io,http://localhost:5173
 4. 创建 HTTP Trigger：允许 `POST` 和 `OPTIONS`，认证方式选“无认证”，在 Trigger 中开启 CORS 并保留公网 URL。
 5. 部署后复制 Trigger 的 HTTPS URL；它是前端唯一需要的服务端地址。
 
-函数计算的 CORS 网关会处理浏览器预检。`server/index.mjs` 只返回 JSON，**不要**自行设置任何 `Access-Control-*` 响应头；网关和函数同时设置会产生重复响应头，Safari 可能显示 `load failed`。函数不记录图片、录音、聊天正文或密钥，并且只支持聊天、图片阅读和语音转写三种请求。
+函数计算的 CORS 网关会处理浏览器预检。`server/index.mjs` 只返回 JSON，**不要**自行设置任何 `Access-Control-*` 响应头；网关和函数同时设置会产生重复响应头，Safari 可能显示 `load failed`。函数不记录图片、录音、聊天正文或密钥，当前支持聊天、图片阅读、每日英语阅读、语音转写和演讲反馈请求。
 
 > 注意：`ALLOWED_ORIGINS` 只限制浏览器跨域调用，不能代替用户登录或真正的接口鉴权。当前适合个人自用；请在阿里云设置预算告警和百炼用量告警。不要公开传播函数 URL。若未来分享给多人，应先加用户登录与服务端限流。
 

@@ -1,5 +1,4 @@
-import type { GatewaySettings } from '../types'
-import type { ReadingLevel } from '../types'
+import type { GatewaySettings, ReadingLevel, ReadingUnit } from '../types'
 import type { SpeechFeedback, SpeechTemplate } from '../types'
 import { isAiGatewayConfigured, requestAi } from './apiGateway'
 import { createLocalSpeechFeedback } from './learning'
@@ -23,6 +22,44 @@ export async function getCompanionReply(
 export interface GeneratedReading {
   title: string
   body: string
+}
+
+function isDailyReading(value: unknown): value is Omit<ReadingUnit, 'id' | 'level'> {
+  if (!value || typeof value !== 'object') return false
+  const reading = value as Partial<ReadingUnit>
+  return Boolean(
+    typeof reading.title === 'string'
+    && ['everyday', 'parenting', 'travel', 'world'].includes(String(reading.category))
+    && typeof reading.minutes === 'number'
+    && reading.minutes > 0
+    && Array.isArray(reading.paragraphs)
+    && reading.paragraphs.length >= 1
+    && reading.paragraphs.every((item) => typeof item === 'string' && item.trim())
+    && reading.notes
+    && typeof reading.notes === 'object'
+    && Object.keys(reading.notes).length >= 1
+    && Object.entries(reading.notes).every(([word, meaning]) => word.trim() && typeof meaning === 'string' && meaning.trim())
+    && typeof reading.question === 'string'
+    && typeof reading.answerHint === 'string',
+  )
+}
+
+export async function getDailyReading(
+  date: string,
+  level: ReadingLevel,
+  settings?: GatewaySettings,
+): Promise<ReadingUnit> {
+  const data = await requestAi<Omit<ReadingUnit, 'id' | 'level'>>('daily-reading', { date, level }, settings)
+  if (!isDailyReading(data)) throw new Error('每日阅读格式无效。')
+  return {
+    ...data,
+    title: data.title.trim(),
+    paragraphs: data.paragraphs.map((paragraph) => paragraph.trim()),
+    question: data.question.trim(),
+    answerHint: data.answerHint.trim(),
+    id: `daily-${date}-${level}`,
+    level,
+  }
 }
 
 export async function createReadingFromImage(

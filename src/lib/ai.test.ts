@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createReadingFromImage, getCompanionReply, getSpeechFeedback } from './ai'
+import { createReadingFromImage, getCompanionReply, getDailyReading, getSpeechFeedback } from './ai'
 import type { SpeechTemplate } from '../types'
 
 const speechTemplate: SpeechTemplate = {
@@ -65,6 +65,37 @@ describe('companion replies', () => {
         body: expect.stringContaining('"action":"speech-feedback"'),
       }),
     )
+  })
+
+  it('requests and validates the new reading for a specific day and level', async () => {
+    const generated = {
+      title: 'The Extra Umbrella',
+      category: 'everyday',
+      minutes: 2,
+      paragraphs: ['Mia sees an extra umbrella near the door.', 'She takes it to her neighbor before the rain starts.'],
+      notes: { extra: '额外的', neighbor: '邻居' },
+      question: 'Why does Mia visit her neighbor?',
+      answerHint: 'She wants to bring the umbrella before it rains.',
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(generated)))
+
+    await expect(getDailyReading('2026-07-30', 'starter', { apiBaseUrl: 'https://example.fcapp.run' })).resolves.toEqual({
+      ...generated,
+      id: 'daily-2026-07-30-starter',
+      level: 'starter',
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.fcapp.run',
+      expect.objectContaining({
+        body: JSON.stringify({ action: 'daily-reading', date: '2026-07-30', level: 'starter' }),
+      }),
+    )
+  })
+
+  it('rejects an invalid daily reading instead of caching broken content', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ title: 'Incomplete' })))
+
+    await expect(getDailyReading('2026-07-30', 'starter', { apiBaseUrl: 'https://example.fcapp.run' })).rejects.toThrow('每日阅读格式无效')
   })
 
   it('falls back to focused local feedback when cloud coaching fails', async () => {

@@ -4,16 +4,31 @@ import {
   clearMemories,
   createMemoryExport,
   loadMemories,
+  loadDailyReading,
   loadSettings,
   loadSpeechPracticeRecords,
   saveMemory,
+  saveDailyReading,
   saveSettings,
   saveSpeechPracticeRecord,
 } from './storage'
+import type { ReadingUnit } from '../types'
 
 const memory = {
   scope: 'companion' as const,
   text: '今天有点累，但晚饭时宝宝笑得很开心。',
+}
+
+const dailyReading: ReadingUnit = {
+  id: 'daily-2026-07-30-starter',
+  level: 'starter',
+  category: 'everyday',
+  title: 'The Extra Umbrella',
+  minutes: 2,
+  paragraphs: ['Mia sees an extra umbrella near the door.'],
+  notes: { extra: '额外的' },
+  question: 'What does Mia see?',
+  answerHint: 'An extra umbrella.',
 }
 
 describe('memory storage', () => {
@@ -86,6 +101,14 @@ describe('memory storage', () => {
     expect(loadSpeechPracticeRecords()[0].transcript).toBe('第二次复述。')
   })
 
+  it('caches one generated reading for each day and level', () => {
+    saveDailyReading('2026-07-30', 'starter', dailyReading)
+
+    expect(loadDailyReading('2026-07-30', 'starter')).toEqual(dailyReading)
+    expect(loadDailyReading('2026-07-31', 'starter')).toBeUndefined()
+    expect(loadDailyReading('2026-07-30', 'bridge')).toBeUndefined()
+  })
+
   it('clears speech practice records with the rest of the local data', () => {
     saveSpeechPracticeRecord({
       date: '2026-07-29',
@@ -105,5 +128,6 @@ describe('memory storage', () => {
     clearAllLocalData()
 
     expect(loadSpeechPracticeRecords()).toEqual([])
+    expect(loadDailyReading('2026-07-30', 'starter')).toBeUndefined()
   })
 })

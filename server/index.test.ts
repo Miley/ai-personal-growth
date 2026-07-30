@@ -94,4 +94,28 @@ describe('Function Compute AI proxy', () => {
     expect(payload.messages[1].content).toContain('我建议先做小范围验证')
     expect(payload.messages[0].content).toContain('只指出一个最优先改进点')
   })
+
+  it('generates a structured English reading for the requested date and level', async () => {
+    const dailyReading = {
+      title: 'The Extra Umbrella',
+      category: 'everyday',
+      minutes: 2,
+      paragraphs: ['Mia sees an extra umbrella near the door.', 'She takes it to her neighbor before the rain starts.'],
+      notes: { extra: '额外的', neighbor: '邻居' },
+      question: 'Why does Mia visit her neighbor?',
+      answerHint: 'She wants to bring the umbrella before it rains.',
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: `\`\`\`json\n${JSON.stringify(dailyReading)}\n\`\`\`` } }],
+    })))
+
+    const result = await handler(event({ action: 'daily-reading', date: '2026-07-30', level: 'starter' }))
+
+    expect(result.statusCode).toBe(200)
+    expect(JSON.parse(result.body)).toEqual(dailyReading)
+    const payload = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    expect(payload.messages[1].content).toContain('2026-07-30')
+    expect(payload.messages[1].content).toContain('starter')
+    expect(payload.messages[0].content).toContain('只返回合法 JSON')
+  })
 })

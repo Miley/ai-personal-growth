@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { READING_UNITS } from '../data/reading'
-import { createReadingFromImage, type GeneratedReading } from '../lib/ai'
+import { createReadingFromImage, getDailyReading, type GeneratedReading } from '../lib/ai'
 import { rotateDailyReadingUnits } from '../lib/learning'
-import { saveMemory } from '../lib/storage'
+import { loadDailyReading, saveDailyReading, saveMemory } from '../lib/storage'
 import type { GatewaySettings, ReadingLevel, ReadingUnit } from '../types'
 
 const levelLabels: Record<ReadingLevel, string> = { starter: '起步', bridge: '过渡', steady: '稳定阅读' }
@@ -12,6 +12,13 @@ function sameDay(first: Date, second: Date): boolean {
   return first.getFullYear() === second.getFullYear()
     && first.getMonth() === second.getMonth()
     && first.getDate() === second.getDate()
+}
+
+function localDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function speak(text: string) {
@@ -25,13 +32,20 @@ function speak(text: string) {
 export function Reader({ onMemoryChanged, settings }: { onMemoryChanged: () => void; settings: GatewaySettings }) {
   const [level, setLevel] = useState<ReadingLevel>('starter')
   const [today, setToday] = useState(() => new Date())
-  const units = useMemo(() => rotateDailyReadingUnits(READING_UNITS, level, today), [level, today])
-  const [activeId, setActiveId] = useState(units[0].id)
+  const dateKey = localDateKey(today)
+  const fallbackUnits = useMemo(() => rotateDailyReadingUnits(READING_UNITS, level, today), [level, today])
+  const [dailyReading, setDailyReading] = useState<ReadingUnit>()
+  const [dailyStatus, setDailyStatus] = useState<'loading' | 'generated' | 'fallback'>('loading')
+  const displayUnits = useMemo(() => {
+    const first = dailyReading || fallbackUnits[0]
+    return [first, ...fallbackUnits.filter((unit) => unit.id !== first.id)]
+  }, [dailyReading, fallbackUnits])
+  const [activeId, setActiveId] = useState(fallbackUnits[0].id)
   const [note, setNote] = useState<string>()
   const [answer, setAnswer] = useState('')
   const [imageReading, setImageReading] = useState<GeneratedReading>()
   const [imageLoading, setImageLoading] = useState(false)
-  const active = (READING_UNITS.find((item) => item.id === activeId) || units[0]) as ReadingUnit
+  const active = displayUnits.find((item) => item.id === activeId) || displayUnits[0]
 
   useEffect(() => {
     const refreshDate = () => {
@@ -49,16 +63,38 @@ export function Reader({ onMemoryChanged, settings }: { onMemoryChanged: () => v
   }, [])
 
   useEffect(() => {
-    setActiveId(units[0].id)
+    let cancelled = false
+    const fallback = fallbackUnits[0]
+    const cached = loadDailyReading(dateKey, level)
     setNote(undefined)
     setAnswer('')
-  }, [today])
+    if (cached) {
+      setDailyReading(cached)
+      setDailyStatus('generated')
+      setActiveId(cached.id)
+      return () => { cancelled = true }
+    }
+
+    setDailyReading(undefined)
+    setDailyStatus('loading')
+    setActiveId(fallback.id)
+    getDailyReading(dateKey, level, settings)
+      .then((reading) => {
+        if (cancelled) return
+        saveDailyReading(dateKey, level, reading)
+        setDailyReading(reading)
+        setDailyStatus('generated')
+        setActiveId(reading.id)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setDailyStatus('fallback')
+      })
+    return () => { cancelled = true }
+  }, [dateKey, fallbackUnits, level, settings])
 
   const chooseLevel = (nextLevel: ReadingLevel) => {
     setLevel(nextLevel)
-    setActiveId(rotateDailyReadingUnits(READING_UNITS, nextLevel, today)[0].id)
-    setNote(undefined)
-    setAnswer('')
   }
 
   const savePhrase = (phrase: string) => {
@@ -92,12 +128,12 @@ export function Reader({ onMemoryChanged, settings }: { onMemoryChanged: () => v
       <div className="level-tabs">
         {(Object.keys(levelLabels) as ReadingLevel[]).map((item) => <button key={item} onClick={() => chooseLevel(item)} className={level === item ? 'active' : ''}>{levelLabels[item]}</button>)}
       </div>
-      <div className="daily-reading-note"><strong>今日阅读</strong><span>{today.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })} · 每天自动换一篇，日常生活主题已加入轮换。</span></div>
+      <div className="daily-reading-note"><strong>今日阅读</strong><span>{today.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })} · {dailyStatus === 'loading' ? '正在生成今日新文章…' : dailyStatus === 'generated' ? '每天首次打开生成一篇新文章，当天保持不变。' : '今日新文章生成失败，暂时显示本地备用内容。'}</span></div>
       <label className="image-reading-button">从一张照片生成我的小阅读<input type="file" accept="image/*" onChange={(event) => createFromImage(event.target.files?.[0])} /></label>
       {imageLoading && <p className="image-reading-status">正在生成；图片只用于本次请求，不会保存。</p>}
       {imageReading && <article className="image-reading"><span className="eyebrow">我的照片阅读</span><h2>{imageReading.title}</h2><p>{imageReading.body}</p></article>}
       <div className="reading-list">
-        {units.map((unit, index) => <button key={unit.id} className={active.id === unit.id ? 'active' : ''} onClick={() => { setActiveId(unit.id); setNote(undefined); setAnswer('') }}><span>{index === 0 ? `今日 · ${categoryLabels[unit.category]}` : categoryLabels[unit.category]}</span>{unit.title}<small>{unit.minutes} 分钟</small></button>)}
+        {displayUnits.map((unit, index) => <button key={unit.id} className={active.id === unit.id ? 'active' : ''} onClick={() => { setActiveId(unit.id); setNote(undefined); setAnswer('') }}><span>{index === 0 ? `${dailyStatus === 'generated' ? '今日新文章' : '今日备用'} · ${categoryLabels[unit.category]}` : `更多练习 · ${categoryLabels[unit.category]}`}</span>{unit.title}<small>{unit.minutes} 分钟</small></button>)}
       </div>
       <article className="reading-card">
         <div className="reading-title"><div><span className="eyebrow">{levelLabels[active.level]} · {active.minutes} 分钟</span><h2>{active.title}</h2></div><button onClick={() => speak(active.paragraphs.join(' '))}>听读</button></div>

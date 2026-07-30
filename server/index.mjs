@@ -80,6 +80,46 @@ function parseJsonResult(data) {
   }
 }
 
+function parseDailyReading(data) {
+  const text = resultText(data).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  const parsed = JSON.parse(text)
+  const categories = ['everyday', 'parenting', 'travel', 'world']
+  if (
+    !parsed
+    || typeof parsed.title !== 'string'
+    || !categories.includes(parsed.category)
+    || typeof parsed.minutes !== 'number'
+    || parsed.minutes <= 0
+    || !Array.isArray(parsed.paragraphs)
+    || parsed.paragraphs.length < 1
+    || !parsed.paragraphs.every((item) => typeof item === 'string' && item.trim())
+    || !parsed.notes
+    || typeof parsed.notes !== 'object'
+    || Array.isArray(parsed.notes)
+    || Object.keys(parsed.notes).length < 1
+    || !Object.entries(parsed.notes).every(([word, meaning]) => word.trim() && typeof meaning === 'string' && meaning.trim())
+    || typeof parsed.question !== 'string'
+    || typeof parsed.answerHint !== 'string'
+  ) {
+    throw new Error('invalid-daily-reading')
+  }
+  return {
+    title: parsed.title.trim(),
+    category: parsed.category,
+    minutes: parsed.minutes,
+    paragraphs: parsed.paragraphs.map((item) => item.trim()),
+    notes: parsed.notes,
+    question: parsed.question.trim(),
+    answerHint: parsed.answerHint.trim(),
+  }
+}
+
+function dailyTopic(date, level) {
+  const categories = ['everyday', 'parenting', 'travel', 'world']
+  const seed = `${date}:${level}`.split('').reduce((total, character) => total + character.charCodeAt(0), 0)
+  return categories[seed % categories.length]
+}
+
 async function handleAction(body) {
   if (body.action === 'chat') {
     const content = [{ type: 'text', text: String(body.text || '') }]
@@ -108,6 +148,37 @@ async function handleAction(body) {
     const [title, ...bodyLines] = resultText(data).split('\n').filter(Boolean)
     if (!title || !bodyLines.length) throw new Error('invalid-reading-result')
     return { title: title.replace(/^#+\s*/, ''), body: bodyLines.join(' ') }
+  }
+
+  if (body.action === 'daily-reading') {
+    const date = String(body.date || '')
+    const level = String(body.level || '')
+    const levelRules = {
+      starter: '90-130 English words, CEFR A1-A2, short sentences, 2 paragraphs, about 2-3 minutes',
+      bridge: '140-200 English words, CEFR A2-B1, 2-3 paragraphs, about 4-5 minutes',
+      steady: '220-320 English words, CEFR B1-B2, 3-4 paragraphs, about 7-8 minutes',
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !levelRules[level]) throw new Error('invalid-daily-reading-request')
+    const topic = dailyTopic(date, level)
+    const prompt = `You create one original, calm English reading for an adult learner each day.
+Rules:
+1. Follow the requested level and word range exactly.
+2. Use a fresh, concrete situation. Do not mention that it was AI-generated.
+3. The requested category is ${topic}. Allowed category values: everyday, parenting, travel, world.
+4. Avoid current news, unverifiable facts, sensitive personal inferences, diagnosis, or advice.
+5. Include 3-5 useful English words or phrases with concise Chinese meanings.
+6. Add one comprehension question and a short English answer hint.
+7. 只返回合法 JSON，不要 Markdown：
+{"title":"...","category":"${topic}","minutes":2,"paragraphs":["...","..."],"notes":{"word":"中文释义"},"question":"...","answerHint":"..."}`
+    const data = await callModel({
+      model: process.env.BAILIAN_CHAT_MODEL || 'qwen3-vl-flash',
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: `Date: ${date}\nLevel: ${level}\nRequirements: ${levelRules[level]}` },
+      ],
+      max_tokens: level === 'steady' ? 1000 : 700,
+    })
+    return parseDailyReading(data)
   }
 
   if (body.action === 'transcribe') {
